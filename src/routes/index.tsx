@@ -5,8 +5,8 @@ const TILE = 92;
 import type { CSSProperties } from "react";
 
 const checkerboard: CSSProperties = {
-  backgroundColor: "#ffffff",
-  backgroundImage: "linear-gradient(90deg, #ffd900 80px, transparent 80px), linear-gradient(#ffd900 80px, transparent 80px)",
+  backgroundColor: "#ffd900",
+  backgroundImage: "linear-gradient(90deg, transparent 80px, #ffffff 80px), linear-gradient(transparent 80px, #ffffff 80px)",
   backgroundSize: `${TILE}px ${TILE}px`,
   backgroundRepeat: "repeat",
   backgroundPosition: "0 0",
