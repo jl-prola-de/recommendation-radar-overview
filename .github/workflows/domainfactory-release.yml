@@ -1,0 +1,59 @@
+name: Domainfactory Release (manual approval only)
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Type FREIGABE to allow uploading this revision'
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: domainfactory-release
+  cancel-in-progress: false
+jobs:
+  release:
+    if: ${{ inputs.confirmation == 'FREIGABE' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: domainfactory-live
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --no-audit --no-fund
+      - run: npm run build
+      - name: Verify static output
+        run: |
+          test -s .output/public/index.html
+          test -d .output/public/assets
+      - name: Require configured FTPS destination
+        env:
+          HOST: ${{ secrets.DF_FTPS_HOST }}
+          USERNAME: ${{ secrets.DF_FTPS_USER }}
+          PASSWORD: ${{ secrets.DF_FTPS_PASSWORD }}
+          TARGET: ${{ vars.DF_REMOTE_PATH }}
+        run: |
+          for value in "$HOST" "$USERNAME" "$PASSWORD" "$TARGET"; do
+            if [ -z "$value" ]; then
+              echo "Missing Domainfactory connection setting. Nothing uploaded."
+              exit 1
+            fi
+          done
+          case "$TARGET" in
+            /*) ;;
+            *) echo "Remote path must be absolute"; exit 1 ;;
+          esac
+          case "$TARGET" in
+            /|/..|*/../*|*/..) echo "Unsafe remote path"; exit 1 ;;
+          esac
+      - name: Upload via verified FTPS (never delete remote files)
+        env:
+          HOST: ${{ secrets.DF_FTPS_HOST }}
+          USERNAME: ${{ secrets.DF_FTPS_USER }}
+          PASSWORD: ${{ secrets.DF_FTPS_PASSWORD }}
+          TARGET: ${{ vars.DF_REMOTE_PATH }}
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq lftp
+          lftp -c "set ftp:ssl-force true; set ftp:ssl-protect-data true; set ssl:verify-certificate true; open --user \"$USERNAME\" --password \"$PASSWORD\" \"ftp://$HOST\"; mirror --reverse --verbose --only-newer --no-perms .output/public \"$TARGET\""
