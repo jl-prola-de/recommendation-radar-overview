@@ -36,3 +36,46 @@ jobs:
       - name: Inspect build output
         run: |
           find .output dist -maxdepth 3 -type f 2>/dev/null | head -80 || true
+      - name: Verify static asset references and HTTP response
+        run: |
+          python3 - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+          from urllib.parse import urlsplit, unquote
+          root = Path('.output/public')
+          class References(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.paths = []
+              def handle_starttag(self, tag, attrs):
+                  a = dict(attrs)
+                  for key in ('src', 'href'):
+                      if key in a and tag in ('script', 'link', 'img'):
+                          self.paths.append(a[key])
+          parser = References()
+          parser.feed((root/'index.html').read_text())
+          missing = []
+          for url in parser.paths:
+              u = urlsplit(url)
+              if u.scheme or u.netloc or not u.path.startswith('/'):
+                  continue
+              target = root / unquote(u.path).lstrip('/')
+              if not target.is_file():
+                  missing.append(url)
+          print('Checked local references:', len(parser.paths))
+          if missing:
+              raise SystemExit('Missing local assets: ' + ', '.join(missing))
+          PY
+          python3 -m http.server 8765 --directory .output/public > /tmp/static-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+          sleep 2
+          curl --fail --silent --show-error -o /tmp/static-index.html -w 'HTTP %{http_code}\\n' http://127.0.0.1:8765/
+          grep -qi '<html' /tmp/static-index.html
+      - name: Save static preview files (no deployment)
+        uses: actions/upload-artifact@v4
+        with:
+          name: static-preview
+          path: .output/public/
+          if-no-files-found: error
+          retention-days: 7
