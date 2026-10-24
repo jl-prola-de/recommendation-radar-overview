@@ -89,9 +89,19 @@ jobs:
           cd github-test
           mkdir -f website-preview
           cd website-preview
-          mirror --reverse --verbose --only-newer .output/public/ .
+          mirror --reverse --verbose .output/public/ .
           cls -l
+          cls index.html
           bye
           EOF
           lftp -u "$USERNAME","$PASSWORD" "ftp://$HOST" -e "source /tmp/preview.lftp"
           echo "ISOLATED_WEBSITE_UPLOAD_COMPLETED"
+      - name: HTTP-Test nach Upload
+        run: |
+          set -euo pipefail
+          URL="http://objekte-projekte.de/github-test/website-preview/"
+          echo "Pruefe: $URL"
+          curl --location --insecure --fail --show-error --silent --max-time 35 --output /tmp/preview.html --write-out 'HTTP %{http_code}; final URL %{url_effective}\n' "$URL"
+          test -s /tmp/preview.html
+          grep -q '<html' /tmp/preview.html
+          echo "PREVIEW_HTTP_AVAILABLE"
