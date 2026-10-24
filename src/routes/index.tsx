@@ -1,24 +1,48 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
+const TILE = 72;
+
+const checkerboard: React.CSSProperties = {
+  backgroundColor: "#ffffff",
+  backgroundImage: [
+    "linear-gradient(45deg, #d81f26 25%, transparent 25%)",
+    "linear-gradient(-45deg, #d81f26 25%, transparent 25%)",
+    "linear-gradient(45deg, transparent 75%, #d81f26 75%)",
+    "linear-gradient(-45deg, transparent 75%, #d81f26 75%)",
+  ].join(", "),
+  backgroundSize: `${TILE}px ${TILE}px`,
+  backgroundPosition: `0 0, 0 ${TILE / 2}px, ${TILE / 2}px ${-TILE / 2}px, ${-TILE / 2}px 0`,
+};
+
 export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "GitHub 24-10" },
+      {
+        name: "description",
+        content: "Statische Seite mit dem Hinweis GitHub 24-10 auf rot-weiß kariertem Grund.",
+      },
+      { property: "og:type", content: "website" },
+      { property: "og:title", content: "GitHub 24-10" },
+      {
+        property: "og:description",
+        content: "Statische Seite mit dem Hinweis GitHub 24-10 auf rot-weiß kariertem Grund.",
+      },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
 function Index() {
   return (
     <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
+      className="flex min-h-screen items-center justify-center px-6"
+      style={checkerboard}
     >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
+      <h1 className="bg-white px-10 py-6 text-center text-5xl font-bold tracking-tight text-[#d81f26] shadow-[0_10px_30px_rgba(0,0,0,0.18)] sm:text-7xl">
+        GitHub 24-10
+      </h1>
     </div>
   );
 }
