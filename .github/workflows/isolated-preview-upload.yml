@@ -15,7 +15,7 @@ jobs:
       - name: Build
         run: |
           npm install --no-audit --no-fund
-          npm run build
+          VITE_PREVIEW_BASEPATH=/github-test/website-preview npm run build
           test -s .output/public/index.html
           test -d .output/public/assets
       - name: Isolierte Testpfade setzen
