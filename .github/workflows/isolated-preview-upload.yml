@@ -30,6 +30,11 @@ jobs:
           content=re.sub(r'(?<=["\'])/assets/', '/github-test/website-preview/assets/', content)
           content=re.sub(r'(?<=["\'])/favicon.ico', '/github-test/website-preview/favicon.ico', content)
           html.write_text(content)
+          redirect = """<script>if(location.pathname.endsWith('/index.html')){location.replace(location.pathname.slice(0,-10)+location.search+location.hash)}</script>"""
+          content=html.read_text()
+          assert "</head>" in content, "HTML head missing"
+          html.write_text(content.replace("</head>",redirect+"</head>",1))
+          print("Exact index.html browser redirect installed")
           print("Preview asset paths adjusted")
           PY
       - name: FTPS client
