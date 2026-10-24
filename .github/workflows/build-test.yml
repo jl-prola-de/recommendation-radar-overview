@@ -26,6 +26,13 @@ jobs:
           }
       - name: Build website
         run: npm run build
+      - name: Verify static hosting readiness
+        run: |
+          if [ ! -f .output/public/index.html ]; then
+            echo 'STATIC_HOSTING_NOT_READY: .output/public/index.html missing; FTP deployment blocked.'
+            exit 1
+          fi
+          echo 'Static index.html exists. Additional runtime and link checks are still required.'
       - name: Inspect build output
         run: |
           find .output dist -maxdepth 3 -type f 2>/dev/null | head -80 || true
