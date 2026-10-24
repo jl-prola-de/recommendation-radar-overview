@@ -2,7 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 
 const TILE = 72;
 
-const checkerboard: React.CSSProperties = {
+import type { CSSProperties } from "react";
+
+const checkerboard: CSSProperties = {
   backgroundColor: "#ffffff",
   backgroundImage: [
     "linear-gradient(45deg, #d81f26 25%, transparent 25%)",
