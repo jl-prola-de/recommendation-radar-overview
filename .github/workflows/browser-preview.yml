@@ -1,0 +1,29 @@
+name: Separate Browser Preview
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --no-audit --no-fund
+      - run: npm run build
+      - name: Adjust preview asset paths
+        run: |
+          test -f .output/public/index.html
+          sed -i 's|="/assets/|="/recommendation-radar-overview/assets/|g; s|="/favicon.ico|="/recommendation-radar-overview/favicon.ico|g' .output/public/index.html
+          touch .output/public/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: .output/public
+      - uses: actions/deploy-pages@v4
