@@ -1,0 +1,21 @@
+name: Diagnose FTPS certificate
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  certificate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Inspect FTPS certificate without credentials
+        env:
+          HOST: ${{ secrets.DF_FTPS_HOST }}
+        run: |
+          set -euo pipefail
+          test -n "$HOST"
+          echo "Inspecting FTPS TLS certificate on port 21 (no login)."
+          timeout 25 openssl s_client -starttls ftp -connect "$HOST:21" -showcerts </dev/null > /tmp/ftps-certs.txt 2>&1 || true
+          sed -n '/Certificate chain/,/Server certificate/p' /tmp/ftps-certs.txt | head -45
+          openssl x509 -in /tmp/ftps-certs.txt -noout -subject -issuer -dates -ext subjectAltName || true
+          grep -E 'Verify return code|Verification error' /tmp/ftps-certs.txt || true
