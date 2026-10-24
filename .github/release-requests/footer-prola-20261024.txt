@@ -1,0 +1,1 @@
+Deploy ProLa legal footer to isolated preview. Production release still gated.
