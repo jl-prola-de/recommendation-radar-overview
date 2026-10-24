@@ -1,0 +1,1 @@
+Isolated preview refresh: yellow squares. Live website must remain unchanged.
