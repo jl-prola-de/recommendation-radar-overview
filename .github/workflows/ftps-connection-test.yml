@@ -1,0 +1,39 @@
+name: Domainfactory FTPS Connection Test (read only)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  connection-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Install FTPS client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp
+      - name: Check secure connection and test folder without uploading
+        env:
+          HOST: ${{ secrets.DF_FTPS_HOST }}
+          USERNAME: ${{ secrets.DF_FTPS_USER }}
+          PASSWORD: ${{ secrets.DF_FTPS_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$HOST" && test -n "$USERNAME" && test -n "$PASSWORD"
+          cat > /tmp/check.lftp <<'EOF'
+          set cmd:fail-exit yes
+          set ftp:ssl-force yes
+          set ftp:ssl-protect-data yes
+          set ssl:verify-certificate yes
+          set net:timeout 15
+          set net:max-retries 2
+          pwd
+          cls -l
+          cd github-test
+          pwd
+          cls -l
+          bye
+          EOF
+          echo "Testing FTPS login and github-test directory (read-only)."
+          lftp -u "$USERNAME","$PASSWORD" "ftp://$HOST" -f /tmp/check.lftp
+          echo "FTPS_READ_ONLY_TEST_PASSED"
