@@ -18,16 +18,11 @@ jobs:
           VITE_PREVIEW_BASEPATH=/github-test/website-preview npm run build
           npm install --no-save playwright
           npx playwright install --with-deps chromium
-      - name: Gleiche HTML-Pfadumschreibung wie FTP-Vorschau
+      - name: Statische Testseite im Unterordner bereitstellen
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
-          html=Path(".output/public/index.html")
-          content=html.read_text()
-          content=re.sub(r'(?<=["\'])/assets/', '/github-test/website-preview/assets/', content)
-          content=re.sub(r'(?<=["\'])/favicon.ico', '/github-test/website-preview/favicon.ico', content)
-          html.write_text(content)
           target=Path("/tmp/website-runtime/github-test/website-preview")
           target.parent.mkdir(parents=True,exist_ok=True)
           target.symlink_to(Path(".output/public").resolve(),target_is_directory=True)
