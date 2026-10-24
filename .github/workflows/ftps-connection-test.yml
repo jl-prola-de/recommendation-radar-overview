@@ -35,5 +35,5 @@ jobs:
           bye
           EOF
           echo "Testing FTPS login and github-test directory (read-only)."
-          lftp -u "$USERNAME","$PASSWORD" "ftp://$HOST" -f /tmp/check.lftp
+          lftp -u "$USERNAME","$PASSWORD" "ftp://$HOST" -e "source /tmp/check.lftp"
           echo "FTPS_READ_ONLY_TEST_PASSED"
