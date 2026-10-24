@@ -1,0 +1,88 @@
+name: Domainfactory isolierte Website-Testversion
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test-upload:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Build
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+          test -s .output/public/index.html
+          test -d .output/public/assets
+      - name: Isolierte Testpfade setzen
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          root=Path(".output/public")
+          html=root/"index.html"
+          content=html.read_text()
+          content=re.sub(r'(?<=["\'])/assets/', '/github-test/website-preview/assets/', content)
+          content=re.sub(r'(?<=["\'])/favicon.ico', '/github-test/website-preview/favicon.ico', content)
+          html.write_text(content)
+          print("Preview asset paths adjusted")
+          PY
+      - name: FTPS client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp
+      - name: Upload nur in isolierten Testordner
+        env:
+          HOST: ${{ secrets.DF_FTPS_HOST }}
+          USERNAME: ${{ secrets.DF_FTPS_USER }}
+          PASSWORD: ${{ secrets.DF_FTPS_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$HOST" && test -n "$USERNAME" && test -n "$PASSWORD"
+          cat > /tmp/df-ftps-pinned.pem <<'CERT'
+          -----BEGIN CERTIFICATE-----
+                    MIIDpTCCAo2gAwIBAgIJAKkUQ/v19NCTMA0GCSqGSIb3DQEBCwUAMGgxCzAJBgNV
+                    BAYTAkRFMQ8wDQYDVQQIDAZCYXllcm4xETAPBgNVBAcMCE11ZW5jaGVuMRMwEQYD
+                    VQQKDAppc3BnYXRld2F5MSAwHgYDVQQDDBd3ZWJzZXJ2ZXIuaXNwZ2F0ZXdheS5k
+                    ZTAgFw0yMjExMDQxMTM5NTJaGA8yMDUwMDMyMjExMzk1MlowaDELMAkGA1UEBhMC
+                    REUxDzANBgNVBAgMBkJheWVybjERMA8GA1UEBwwITXVlbmNoZW4xEzARBgNVBAoM
+                    CmlzcGdhdGV3YXkxIDAeBgNVBAMMF3dlYnNlcnZlci5pc3BnYXRld2F5LmRlMIIB
+                    IjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxo1r1Tf7b5sKH6GcLIvY1eG4
+                    k9aFAnA7dhEuchznAnPigMjBg+ZTtIeGhUb7K0PpVCtbTQHDz1BCz2r/lulCPC8G
+                    r7xKv0dHKhvZYbO3XUoEfyLH6SOP4KdoKx881PzEdRmvm1kD4/7qzULHXVWiCu/A
+                    kWdUykcKPyucGBlW8M3Hyla8Tz0+8nW6t/Iuc6+N8ofhPQBZRpOBapv7pOHpbkK/
+                    eWoVdC8+/855AuD+6GESAfIHVHDYPv8CsmC/vX3U2Sh17PrLiut682WUQQ4Juqqh
+                    WAtb8S0Uze1TM23LNSEux/JpeV5olw0neG/V7HHb+AbiN9NGJAMQemrQssDp8QID
+                    AQABo1AwTjAdBgNVHQ4EFgQUK11uNqexKivrlP1G0SOlZVBvZ2gwHwYDVR0jBBgw
+                    FoAUK11uNqexKivrlP1G0SOlZVBvZ2gwDAYDVR0TBAUwAwEB/zANBgkqhkiG9w0B
+                    AQsFAAOCAQEAdGIMneh/f5Cy6u2cFBxNVvu0lXvuU5VzT0KZKrR3e9njCF70I0f6
+                    q/WlPz6SQBVUPd3X8gnr8UokaTgC+vzNnk5NAtstRBMTJbvtITwQHtseCzEY+eRV
+                    48U5F6AclZIs8uemZIeY+O8TES4eBCl7ehtxiyumkVDEHEHt0W8G2MUtpKblw/79
+                    NbwXYOxzIMydYwJO5r0EA44WTfgunH4sE3Kkf9SBMMf3hcQEUf4Kemk27L0KAGKq
+                    ReBxeiy1LkvHiGZm8wQ0Q1KLRWxn5gE8yovWik4t5jJwPO05Rcofpq5FHs6JfbbO
+                    czX9GYs7T1Bqi2ZXvMSQjMnNHN8AADeD2A==
+                    -----END CERTIFICATE-----
+          CERT
+          cat > /tmp/preview.lftp <<'EOF'
+          set cmd:fail-exit yes
+          set ftp:ssl-force yes
+          set ftp:ssl-protect-data yes
+          set ssl:verify-certificate yes
+          set ssl:ca-file /tmp/df-ftps-pinned.pem
+          set ssl:check-hostname no
+          set net:timeout 20
+          set net:max-retries 2
+          cd github-test
+          mkdir -f website-preview
+          cd website-preview
+          mirror --reverse --verbose --only-newer .output/public/ .
+          cls -l
+          bye
+          EOF
+          lftp -u "$USERNAME","$PASSWORD" "ftp://$HOST" -e "source /tmp/preview.lftp"
+          echo "ISOLATED_WEBSITE_UPLOAD_COMPLETED"
