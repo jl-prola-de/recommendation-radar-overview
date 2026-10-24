@@ -38,8 +38,13 @@ jobs:
           set -euo pipefail
           test -s .output/public/index.html
           test -d .output/public/assets
+          # Root-relative assets are correct for objekte-projekte.de at domain root.
+          # Unlike the GitHub Pages subpath preview, no path rewrite is required.
           if grep -Eq '(src|href)="/assets/' .output/public/index.html; then
-            echo "::error::Absolute Asset-Pfade erfordern Anpassung."
+            echo "Root-relative asset paths detected: valid only when published at domain root."
+          fi
+          if grep -Eq '(src|href)="/recommendation-radar-overview/assets/' .output/public/index.html; then
+            echo "::error::GitHub Pages preview asset paths must not be deployed to domain root."
             exit 1
           fi
           if [ -d .output/server ]; then
