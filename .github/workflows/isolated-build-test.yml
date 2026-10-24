@@ -1,0 +1,45 @@
+name: Isolierter Basispfad-Build-Test
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build-check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Abhaengigkeiten installieren
+        run: npm install --no-audit --no-fund
+      - name: Isolierter Preview-Build
+        env:
+          VITE_PREVIEW_BASEPATH: /github-test/website-preview
+        run: npm run build
+      - name: Basispfad und Ausgabedateien pruefen
+        run: |
+          set -euo pipefail
+          test -s .output/public/index.html
+          test -d .output/public/assets
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, sys
+          root=Path(".output/public")
+          html=(root/"index.html").read_text()
+          js=list((root/"assets").rglob("*.js"))
+          print("HTML size:",len(html),"JavaScript files:",len(js))
+          if not js: sys.exit("ERROR: no JS bundles")
+          matches=[str(p) for p in js if "/github-test/website-preview" in p.read_text(errors="replace")]
+          print("Bundles containing preview basepath:",matches)
+          if not matches: sys.exit("ERROR: preview basepath missing in client bundle")
+          if "GitHub 24-10" not in html: sys.exit("ERROR: expected prerendered test page missing")
+          print("PASS: prerendered content and preview basepath found")
+          PY
+      - name: Buildpaket fuer Inspektion speichern
+        uses: actions/upload-artifact@v4
+        with:
+          name: isolated-basepath-build
+          path: .output/public/
+          retention-days: 3
