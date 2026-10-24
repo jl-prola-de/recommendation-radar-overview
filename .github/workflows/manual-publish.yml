@@ -1,0 +1,66 @@
+name: Website manuell veroeffentlichen
+on:
+  workflow_dispatch:
+    inputs:
+      modus:
+        description: "Zuerst pruefen; Live nur nach separater Freigabe"
+        required: true
+        type: choice
+        options:
+          - pruefen
+          - veroeffentlichen
+        default: pruefen
+      freigabe:
+        description: "Fuer Live exakt FREIGABE eingeben"
+        required: false
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: domainfactory-objekte-projekte
+  cancel-in-progress: false
+jobs:
+  vorbereiten:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Abhaengigkeiten installieren
+        run: npm install --no-audit --no-fund
+      - name: Website bauen
+        run: npm run build
+      - name: Eignung fuer statisches Hosting kontrollieren
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s .output/public/index.html
+          test -d .output/public/assets
+          if grep -Eq '(src|href)="/assets/' .output/public/index.html; then
+            echo "::error::Absolute Asset-Pfade erfordern Anpassung."
+            exit 1
+          fi
+          if [ -d .output/server ]; then
+            echo "::warning::Server-Build vorhanden: TanStack-SSR kann Funktionen enthalten, die auf reinem FTP-Webspace nicht laufen."
+          fi
+          echo "Statische Dateien vorhanden. Funktionsfaehigkeit dynamischer Funktionen ist damit NICHT nachgewiesen."
+      - uses: actions/upload-artifact@v4
+        with:
+          name: website-pruefstand-${{ github.run_id }}
+          path: .output/public/
+          retention-days: 30
+  live:
+    if: ${{ inputs.modus == 'veroeffentlichen' }}
+    needs: vorbereiten
+    runs-on: ubuntu-24.04
+    environment: objekte-projekte-live
+    steps:
+      - name: Freigabe und Schutzsperre
+        env:
+          FREIGABE: ${{ inputs.freigabe }}
+        run: |
+          test "$FREIGABE" = "FREIGABE" || { echo "::error::Manuelle Freigabe fehlt."; exit 1; }
+          echo "::error::Live-Upload bleibt gesperrt, bis statische Hosting-Eignung, Zielpfad und Wiederherstellung nachgewiesen sind."
+          exit 1
