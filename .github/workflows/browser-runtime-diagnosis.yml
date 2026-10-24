@@ -1,0 +1,75 @@
+name: Browser-Laufzeitdiagnose ohne FTP
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Build und Browser installieren
+        run: |
+          npm install --no-audit --no-fund
+          VITE_PREVIEW_BASEPATH=/github-test/website-preview npm run build
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Gleiche HTML-Pfadumschreibung wie FTP-Vorschau
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          html=Path(".output/public/index.html")
+          content=html.read_text()
+          content=re.sub(r'(?<=["\'])/assets/', '/github-test/website-preview/assets/', content)
+          content=re.sub(r'(?<=["\'])/favicon.ico', '/github-test/website-preview/favicon.ico', content)
+          html.write_text(content)
+          target=Path("/tmp/website-runtime/github-test/website-preview")
+          target.parent.mkdir(parents=True,exist_ok=True)
+          target.symlink_to(Path(".output/public").resolve(),target_is_directory=True)
+          PY
+      - name: Lokalen Webserver starten
+        run: |
+          cd /tmp/website-runtime
+          python3 -m http.server 4173 > /tmp/website-server.log 2>&1 &
+          echo $! > /tmp/website-server.pid
+          sleep 2
+      - name: Echten Browser nach JavaScript-Start pruefen
+        run: |
+          node --input-type=module <<'JS'
+          import { chromium } from 'playwright';
+          const browser=await chromium.launch({headless:true});
+          let failed=false;
+          for(const path of ['/github-test/website-preview/','/github-test/website-preview/index.html']){
+            const page=await browser.newPage();
+            const errors=[];
+            page.on('pageerror',e=>errors.push('JS: '+e.message));
+            page.on('console',m=>{if(m.type()==='error')errors.push('CONSOLE: '+m.text())});
+            page.on('response',r=>{if(r.status()>=400)errors.push('HTTP '+r.status()+': '+r.url())});
+            await page.goto('http://127.0.0.1:4173'+path,{waitUntil:'networkidle'});
+            await page.waitForTimeout(2500);
+            const text=await page.locator('body').innerText();
+            const ok=text.includes('GitHub 24-10') && !text.includes('Seite nicht gefunden') && !text.includes('Page not found');
+            console.log(JSON.stringify({path,ok,title:await page.title(),body:text.slice(0,450),errors},null,2));
+            await page.screenshot({path:'/tmp/'+(path.endsWith('index.html')?'index':'directory')+'.png',fullPage:true});
+            if(!ok||errors.length)failed=true;
+            await page.close();
+          }
+          await browser.close();
+          if(failed)process.exitCode=1;
+          JS
+      - name: Diagnosebilder auch bei Fehler sichern
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-runtime-diagnose
+          path: |
+            /tmp/directory.png
+            /tmp/index.png
+            /tmp/website-server.log
+          if-no-files-found: ignore
+          retention-days: 3
