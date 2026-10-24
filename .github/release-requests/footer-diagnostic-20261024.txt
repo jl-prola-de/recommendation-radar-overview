@@ -1,0 +1,1 @@
+Trigger isolated deployment with remote file and HTTP checks. No production upload.
