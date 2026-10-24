@@ -6,14 +6,26 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
-      - run: npm install --no-audit --no-fund
-      - run: npm run build
-      - name: Inspect output
+          node-version: '24'
+      - name: Show environment
+        run: |
+          node --version
+          npm --version
+      - name: Install dependencies with detailed diagnostics
+        run: |
+          npm install --no-audit --no-fund --loglevel verbose || {
+            echo "npm install failed; recent npm log:"
+            find "$HOME/.npm/_logs" -name '*debug-0.log' -type f -print | tail -3
+            for file in $(find "$HOME/.npm/_logs" -name '*debug-0.log' -type f | tail -1); do tail -100 "$file"; done
+            exit 1
+          }
+      - name: Build website
+        run: npm run build
+      - name: Inspect build output
         run: |
           find .output dist -maxdepth 3 -type f 2>/dev/null | head -80 || true
